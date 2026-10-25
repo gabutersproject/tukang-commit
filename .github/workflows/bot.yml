@@ -4,30 +4,39 @@ on:
   push:
     branches:
       - master
-      
+
   schedule:
-    - cron: "0,30 * * * *"
+    # Menit 23, sekali sejam. Menit 0 dan 30 adalah slot tersibuk di
+    # scheduler GitHub Actions, dan run yang mengantre di situ sering dibuang.
+    - cron: "23 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tukang-commit
+  cancel-in-progress: false
 
 jobs:
   auto-commit:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4      
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
-          persist-credentials: false
+          ref: master
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Run Bot Task
+        env:
+          COMMITS_PER_HOUR: "5"
+          MAX_COMMITS: "30"
         run: |
           chmod +x ./task.sh
           ./task.sh
-          
-      - name: GitHub Push
-        uses: ad-m/github-push-action@master
-        with:
-          force: true
-          directory: "."
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref }}
+
+      - name: Push commits
+        run: |
+          git push origin HEAD:master || {
+            git pull --rebase --strategy-option=theirs origin master
+            git push origin HEAD:master
+          }
